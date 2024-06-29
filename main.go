@@ -1,24 +1,26 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"log"
 	"os"
+	"strings"
 )
-
-var errNotFound = errors.New("no struct literal found at selection")
-
-var File string
 
 var (
 	filename = flag.String("file", "", "filename")
 	line     = flag.Int("line", 0, "line number of the struct literal")
+	version  = flag.String("version", "", "print fillstruct version")
 )
 
 func main() {
 	log.SetFlags(0)
 	log.SetPrefix("fillstruct: ")
+
+	if strings.Contains(strings.Join(os.Args, " "), "-version") {
+		log.Println(_version)
+		os.Exit(0)
+	}
 
 	flag.Parse()
 

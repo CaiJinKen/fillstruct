@@ -72,9 +72,9 @@ func (h *handler) travel() (err error) {
 			goto do
 		}
 	}
-	h.pkgs = nil // release memory
 
 do:
+	h.pkgs = nil // release memory
 
 	if h.f == nil || h.pkg == nil {
 		return fmt.Errorf("could not find file %q", h.filepath)
@@ -83,13 +83,7 @@ do:
 	h.importNames = buildImportNameMap(h.f)
 
 	ast.Inspect(h.f, func(n ast.Node) bool {
-		if n == nil {
-			return true
-		}
-		startLine := h.pkg.Fset.Position(n.Pos()).Line
-		endLine := h.pkg.Fset.Position(n.End()).Line
-
-		if startLine > h.line || endLine < h.line {
+		if !h.checkPos(n) {
 			return true
 		}
 		switch n.(type) {
@@ -97,6 +91,8 @@ do:
 			return !h.handValueSpec(n.(*ast.ValueSpec))
 		case *ast.FuncDecl:
 			return !h.handFuncDecl(n.(*ast.FuncDecl))
+		case *ast.ReturnStmt:
+			return !h.handReturnStmt(n.(*ast.ReturnStmt))
 		default:
 			return true
 		}
@@ -108,41 +104,122 @@ do:
 }
 
 // handValueSpec hand ast.ValueSpec
-func (h *handler) handValueSpec(node *ast.ValueSpec) (result bool) {
+func (h *handler) handValueSpec(node *ast.ValueSpec) (isTarget bool) {
+	if !h.checkPos(node) {
+		return
+	}
 	for i, v := range node.Values {
-		lll, ok := v.(*ast.CompositeLit)
+		litNode, ok := v.(*ast.CompositeLit)
 		if !ok {
 			continue
 		}
-		node.Values[i] = h.fillCompositeList(lll)
-		result = true
+		if !h.hintLine(litNode) {
+			continue
+		}
+		node.Values[i] = h.fillCompositeList(litNode)
+		isTarget = true
 	}
 
 	return
 }
 
 // handFuncDecl hand ast.FuncDecl
-func (h *handler) handFuncDecl(node *ast.FuncDecl) (result bool) {
+func (h *handler) handFuncDecl(node *ast.FuncDecl) (isTarget bool) {
+	if !h.checkPos(node) {
+		return
+	}
 	for _, v := range node.Body.List {
 		stmt, ok := v.(*ast.AssignStmt)
 		if !ok {
 			continue
 		}
-		if h.pkg.Fset.Position(stmt.TokPos).Line != h.line {
-			continue
-		}
+
 		for i, s := range stmt.Rhs {
-			lll, yes := s.(*ast.CompositeLit)
-			if !yes {
-				continue
+			switch s.(type) {
+			case *ast.FuncLit:
+				if isTarget = h.handFuncLit(s.(*ast.FuncLit)); isTarget {
+					return
+				}
+			case *ast.CompositeLit:
+				litNode := s.(*ast.CompositeLit)
+				if !h.hintLine(litNode) {
+					continue
+				}
+				stmt.Rhs[i] = h.fillCompositeList(litNode)
+				isTarget = true
 			}
-			stmt.Rhs[i] = h.fillCompositeList(lll)
-
-			result = true
 		}
-
 	}
 	return
+}
+
+// handFuncLit hand ast.FuncLit
+func (h *handler) handFuncLit(node *ast.FuncLit) (isTarget bool) {
+	if !h.checkPos(node) {
+		return
+	}
+	for _, v := range node.Body.List {
+		if nn, ok := v.(*ast.AssignStmt); ok {
+			if isTarget = h.handAssignStmt(nn); isTarget {
+				return
+			}
+		}
+	}
+	return
+}
+
+// handAssignStmt hand ast.AssignStmt
+func (h *handler) handAssignStmt(node *ast.AssignStmt) (isTarget bool) {
+	if !h.checkPos(node) {
+		return
+	}
+	for i, s := range node.Rhs {
+		litNode, yes := s.(*ast.CompositeLit)
+		if !yes {
+			continue
+		}
+		if !h.hintLine(litNode) {
+			continue
+		}
+
+		node.Rhs[i] = h.fillCompositeList(litNode)
+
+		isTarget = true
+		return
+	}
+	return
+}
+
+// handReturnStmt hand ast.ReturnStmt
+func (h *handler) handReturnStmt(node *ast.ReturnStmt) (isTarget bool) {
+	if !h.checkPos(node) {
+		return
+	}
+	for _, v := range node.Results {
+		litNode, ok := v.(*ast.FuncLit)
+		if !ok {
+			continue
+		}
+		if isTarget = h.handFuncLit(litNode); isTarget {
+			return
+		}
+	}
+	return
+}
+
+// checkPos whether current node contains assigned position
+func (h *handler) checkPos(node ast.Node) (ok bool) {
+	if node == nil {
+		return
+	}
+	startLine := h.pkg.Fset.Position(node.Pos()).Line
+	endLine := h.pkg.Fset.Position(node.End()).Line
+	return !(startLine > h.line || endLine < h.line)
+}
+
+// hintLine whether the position of the node equals to assigned line
+func (h *handler) hintLine(node *ast.CompositeLit) (yes bool) {
+	return h.pkg.Fset.Position(node.Rbrace).Line == h.line
 }
 
 // fillCompositeList gen assigned zero value

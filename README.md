@@ -41,7 +41,7 @@ after applying fillstruct.
 ## Installation
 
 ```
-% go install github.com/CaiJinKen/fillstruct
+% go install github.com/CaiJinKen/fillstruct@v0.2.1
 ```
 
 ## Usage
@@ -60,3 +60,12 @@ Flags:
 If -offset as well as -line are present, then the tool first uses the
 more specific offset information. If there was no struct literal found
 at the given offset, then the line information is used.
+
+what types of assign statement supported? You can find use case in [test.go](https://github.com/CaiJinKen/fillstruct/blob/master/test.go) for detail.
+- [x] global variable
+- [x] general local variable
+- [x] local variable in local function
+- [x] local variable in function of a return statement
+
+### Vim / Neovim ?
+sure! You can add [vim-fillstruct](https://github.com/CaiJinKen/vim-fillstruct) plugin in vim/neovim
