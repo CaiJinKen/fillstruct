@@ -8,6 +8,7 @@ import (
 	"go/printer"
 	"go/token"
 	"go/types"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -24,6 +25,9 @@ type handler struct {
 	pkg         *packages.Package
 	f           *ast.File
 	importNames map[string]string // import path -> import name
+
+	resultNode  ast.Node
+	isValueSpec bool
 }
 
 func newHandler(filepath string, line int) *handler {
@@ -96,11 +100,9 @@ do:
 		default:
 			return true
 		}
-
 	})
 
 	return
-
 }
 
 // handValueSpec hand ast.ValueSpec
@@ -120,6 +122,10 @@ func (h *handler) handValueSpec(node *ast.ValueSpec) (isTarget bool) {
 		isTarget = true
 	}
 
+	if h.isValueSpec = isTarget; isTarget {
+		h.resultNode = node
+	}
+
 	return
 }
 
@@ -129,6 +135,9 @@ func (h *handler) handFuncDecl(node *ast.FuncDecl) (isTarget bool) {
 		return
 	}
 	for _, v := range node.Body.List {
+		if !h.checkPos(v) {
+			continue
+		}
 		stmt, ok := v.(*ast.AssignStmt)
 		if !ok {
 			continue
@@ -148,6 +157,10 @@ func (h *handler) handFuncDecl(node *ast.FuncDecl) (isTarget bool) {
 				stmt.Rhs[i] = h.fillCompositeList(litNode)
 				isTarget = true
 			}
+		}
+		if isTarget {
+			h.resultNode = stmt
+			break
 		}
 	}
 	return
@@ -185,6 +198,7 @@ func (h *handler) handAssignStmt(node *ast.AssignStmt) (isTarget bool) {
 		node.Rhs[i] = h.fillCompositeList(litNode)
 
 		isTarget = true
+		h.resultNode = node
 		return
 	}
 	return
@@ -235,11 +249,34 @@ func (h *handler) fillCompositeList(node *ast.CompositeLit) (result ast.Expr) {
 	}
 	info.hideType = hideType(prev)
 	result, _ = zeroValue(h.pkg.Types, h.importNames, node, info)
+
 	return
 }
 
 // writeBack write back to the source file
 func (h *handler) writeBack() (err error) {
+	var writers []io.Writer
+	if *stdOut {
+		if *onlyChanged {
+			h.printLine()
+		} else {
+			writers = append(writers, os.Stdout)
+		}
+	}
+
+	if *writeback {
+		f, err := os.OpenFile(h.filepath, os.O_RDWR, 0o66)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		writers = append(writers, f)
+	}
+
+	if len(writers) == 0 {
+		return
+	}
 	var buf bytes.Buffer
 	printer.Fprint(&buf, h.pkg.Fset, h.f)
 	data, err := format.Source(buf.Bytes())
@@ -247,14 +284,23 @@ func (h *handler) writeBack() (err error) {
 		return
 	}
 
-	w, err := os.OpenFile(h.filepath, os.O_RDWR, 066)
-	if err != nil {
-		return
-	}
-	defer w.Close()
+	w := io.MultiWriter(writers...)
 
 	_, err = w.Write(data)
 
-	return nil
+	return
+}
 
+func (h *handler) printLine() {
+	var buf bytes.Buffer
+	printer.Fprint(&buf, h.pkg.Fset, h.resultNode)
+	data, err := format.Source(buf.Bytes())
+	if err != nil {
+		return
+	}
+	if h.isValueSpec {
+		data = append([]byte("var "), data...)
+	}
+
+	os.Stdout.Write(data)
 }

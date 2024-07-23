@@ -8,9 +8,12 @@ import (
 )
 
 var (
-	filename = flag.String("file", "", "filename")
-	line     = flag.Int("line", 0, "line number of the struct literal")
-	version  = flag.String("version", "", "print fillstruct version")
+	filename    = flag.String("file", "", "filename")
+	line        = flag.Int("line", 0, "line number of the struct literal")
+	writeback   = flag.Bool("writeback", false, "writeback to the file")
+	stdOut      = flag.Bool("std-out", true, "print info into stdout")
+	onlyChanged = flag.Bool("only-changed", false, "just print changed line, false will print all info")
+	version     = flag.String("version", "", "print fillstruct version")
 )
 
 func main() {
@@ -39,5 +42,4 @@ func main() {
 	if err := h.writeBack(); err != nil {
 		log.Fatal(err)
 	}
-
 }
