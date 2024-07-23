@@ -41,21 +41,31 @@ after applying fillstruct.
 ## Installation
 
 ```
-% go install github.com/CaiJinKen/fillstruct@v0.2.1
+% go install github.com/CaiJinKen/fillstruct@v0.2.2
 ```
 
 ## Usage
 
 ```
-% fillstruct [-modified] -file=<filename> -offset=<byte offset> -line=<line number>
+% fillstruct -file=<filename> -line=<line number> -writeback=true
+or
+% fillstruct -file <filename> -line <line number> -writeback
 ```
 
 Flags:
 
-	-file:     filename
-	-modified: read an archive of modified files from stdin
-	-offset:   byte offset of the struct literal, optional if -line is present
-	-line:     line number of the struct literal, optional if -offset is present
+   -file string
+    	filename
+   -line int
+    	line number of the struct literal
+   -only-changed
+    	just print changed line, false will print all info
+   -std-out
+    	print info into stdout (default true)
+   -version string
+    	print fillstruct version
+   -writeback
+    	writeback to the file
 
 If -offset as well as -line are present, then the tool first uses the
 more specific offset information. If there was no struct literal found
