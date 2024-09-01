@@ -110,6 +110,10 @@ func (h *handler) handValueSpec(node *ast.ValueSpec) (isTarget bool) {
 	if !h.checkPos(node) {
 		return
 	}
+	if node.Values == nil {
+		isTarget = true
+		return
+	}
 	for i, v := range node.Values {
 		litNode, ok := v.(*ast.CompositeLit)
 		if !ok {
@@ -327,9 +331,6 @@ func (h *handler) printLine() {
 	if err != nil {
 		return
 	}
-	// if h.isValueSpec {
-	// 	data = append([]byte("var "), data...)
-	// }
 
 	os.Stdout.Write(data)
 }
