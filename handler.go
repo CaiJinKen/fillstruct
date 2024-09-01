@@ -138,30 +138,59 @@ func (h *handler) handFuncDecl(node *ast.FuncDecl) (isTarget bool) {
 		if !h.checkPos(v) {
 			continue
 		}
-		stmt, ok := v.(*ast.AssignStmt)
-		if !ok {
-			continue
+
+		switch stmt := v.(type) {
+		case *ast.AssignStmt:
+			for i, s := range stmt.Rhs {
+				switch s.(type) {
+				case *ast.FuncLit:
+					if isTarget = h.handFuncLit(s.(*ast.FuncLit)); isTarget {
+						return
+					}
+				case *ast.CompositeLit:
+					litNode := s.(*ast.CompositeLit)
+					if !h.hintLine(litNode) {
+						continue
+					}
+					stmt.Rhs[i] = h.fillCompositeList(litNode)
+					isTarget = true
+				}
+			}
+			if isTarget {
+				h.resultNode = stmt
+				break
+			}
+		case *ast.DeclStmt:
+			h.handDeclStmt(stmt)
 		}
 
-		for i, s := range stmt.Rhs {
-			switch s.(type) {
-			case *ast.FuncLit:
-				if isTarget = h.handFuncLit(s.(*ast.FuncLit)); isTarget {
-					return
-				}
-			case *ast.CompositeLit:
-				litNode := s.(*ast.CompositeLit)
-				if !h.hintLine(litNode) {
-					continue
-				}
-				stmt.Rhs[i] = h.fillCompositeList(litNode)
-				isTarget = true
+	}
+	return
+}
+
+func (h *handler) handDeclStmt(node *ast.DeclStmt) (isTarget bool) {
+	if !h.checkPos(node) {
+		return
+	}
+	decl, ok := node.Decl.(*ast.GenDecl)
+	if !ok {
+		return
+	}
+	for _, v := range decl.Specs {
+		if !h.checkPos(v) {
+			continue
+		}
+		switch spec := v.(type) {
+		case *ast.ValueSpec:
+			isTarget = h.handValueSpec(spec)
+			if isTarget {
+				goto lable
 			}
 		}
-		if isTarget {
-			h.resultNode = stmt
-			break
-		}
+	}
+lable:
+	if isTarget {
+		h.resultNode = decl
 	}
 	return
 }
@@ -298,9 +327,9 @@ func (h *handler) printLine() {
 	if err != nil {
 		return
 	}
-	if h.isValueSpec {
-		data = append([]byte("var "), data...)
-	}
+	// if h.isValueSpec {
+	// 	data = append([]byte("var "), data...)
+	// }
 
 	os.Stdout.Write(data)
 }
