@@ -1,4 +1,4 @@
-module CaiJinKen/fillstruct
+module github.com/CaiJinKen/fillstruct
 
 go 1.21.0
 
