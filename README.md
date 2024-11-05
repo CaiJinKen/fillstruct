@@ -47,7 +47,7 @@ after applying fillstruct.
 ## Installation
 
 ```sh
-% go install github.com/CaiJinKen/fillstruct@v0.2.3
+% go install github.com/CaiJinKen/fillstruct@latest
 ```
 
 ## Usage
